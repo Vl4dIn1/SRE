@@ -90,7 +90,10 @@ func main() {
 }
 
 func (a *App) handleGetServers(w http.ResponseWriter, r *http.Request) {
-	servers, err := GetAllServers(r.Context(), a.db)
+	env := r.URL.Query().Get("environment")
+	search := r.URL.Query().Get("search")
+
+	servers, err := GetAllServers(r.Context(), a.db, env, search)
 	if err != nil {
 		slog.Error("Ошибка чтения серверов из БД", "error", err)
 		sendError(w, http.StatusInternalServerError, "Не удалось получить список серверов")

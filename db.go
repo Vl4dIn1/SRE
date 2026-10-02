@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -57,8 +58,30 @@ func InitDB(ctx context.Context, databaseURL string) (*sql.DB, error) {
 	return db, nil
 }
 
-func GetAllServers(ctx context.Context, db *sql.DB) ([]Server, error) {
-	rows, err := db.QueryContext(ctx, "SELECT id, name, ip_address, environment, status, created_at FROM servers ORDER BY id DESC")
+func GetAllServers(ctx context.Context, db *sql.DB, env, search string) ([]Server, error) {
+	query := "SELECT id, name, ip_address, environment, status, created_at FROM servers"
+	var conditions []string
+	var args []any
+	argIdx := 1
+
+	if env = strings.TrimSpace(env); env != "" {
+		conditions = append(conditions, fmt.Sprintf("environment = $%d", argIdx))
+		args = append(args, env)
+		argIdx++
+	}
+
+	if search = strings.TrimSpace(search); search != "" {
+		conditions = append(conditions, fmt.Sprintf("(name ILIKE $%d OR ip_address ILIKE $%d)", argIdx, argIdx))
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY id DESC"
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
