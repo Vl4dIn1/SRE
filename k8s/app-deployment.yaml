@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-deployment
+  labels:
+    app: status-hub
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels: 
+      app: status-hub
+  template:
+    metadata:
+      labels:
+        app: status-hub
+    spec:
+      containers:
+        - name: status-hub
+          image: status-hub:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              value: "postgres://postgres:postgrespassword@postgres-service:5432/server_inventory?sslmode=disable"

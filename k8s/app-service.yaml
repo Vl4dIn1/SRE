@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+  labels:
+    app: status-hub
+spec:
+  type: NodePort
+  selector: 
+    app: status-hub
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
