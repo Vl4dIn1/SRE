@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: victoria-logs-deployment
+  labels:
+    app: victoria-logs
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels: 
+      app: victoria-logs
+  template:
+    metadata:
+      labels:
+        app: victoria-logs
+    spec:
+      containers:
+        - name: victoria-logs
+          image: victoriametrics/victoria-logs:v1.53.0
+          args:
+            - -storageDataPath=/vlogs-data
+            - -httpListenAddr=:9428
+          ports:
+            - containerPort: 9428
+              name: http
+          volumeMounts:
+            - name: victoria-logs-storage
+              mountPath: /vlogs-data
+      volumes:
+        - name: victoria-logs-storage
+          persistentVolumeClaim:
+            claimName: victoria-logs-pvc

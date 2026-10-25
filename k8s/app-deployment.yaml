@@ -14,10 +14,14 @@ spec:
     metadata:
       labels:
         app: status-hub
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: status-hub
-          image: status-hub:latest
+          image: status-hub:v3
           imagePullPolicy: Never
           ports:
             - containerPort: 8080

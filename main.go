@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 //go:embed static/index.html
@@ -48,6 +49,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/servers", app.handleCreateServer)
 	mux.HandleFunc("PUT /api/v1/servers/{id}", app.handleUpdateServer)
 	mux.HandleFunc("DELETE /api/v1/servers/{id}", app.handleDeleteServer)
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -100,6 +102,9 @@ func (a *App) handleGetServers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, http.StatusOK, APIResponse{Success: true, Data: servers})
+
+	serversTotal.Set(float64(len(servers)))
+	serverOperationsTotal.WithLabelValues("get", "success").Inc()
 }
 
 func (a *App) handleGetServerByID(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +144,9 @@ func (a *App) handleCreateServer(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("Создан новый сервер", "id", server.ID, "name", server.Name)
 	sendJSON(w, http.StatusCreated, APIResponse{Success: true, Data: server})
+
+	serversTotal.Inc()
+	serverOperationsTotal.WithLabelValues("create", "success").Inc()
 }
 
 func (a *App) handleUpdateServer(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +197,9 @@ func (a *App) handleDeleteServer(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("Сервер удален", "id", id)
 	sendJSON(w, http.StatusOK, APIResponse{Success: true, Data: id})
+
+	serversTotal.Dec()
+	serverOperationsTotal.WithLabelValues("delete", "success").Inc()
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, v interface{ Validate() error }) error {
@@ -226,21 +237,62 @@ func getEnv(key, defaultVal string) string {
 }
 
 func initLogger() {
-	var handler slog.Handler = slog.NewTextHandler(os.Stdout, nil)
-	if os.Getenv("LOG_FORMAT") == "json" {
-		handler = slog.NewJSONHandler(os.Stdout, nil)
+
+	opts := &slog.HandlerOptions{
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey{
+				a.Key = "timestamp"
+			}
+			if a.Key == slog.MessageKey{
+				a.Key = "message"
+			}
+			return a
+		},
 	}
-	slog.SetDefault(slog.New(handler))
+
+	var handler slog.Handler = slog.NewJSONHandler(os.Stdout, opts)
+
+	logger := slog.New(handler).With("service.name", "status-hub")
+
+	slog.SetDefault(logger)
+
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
+
+		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+		next.ServeHTTP(wrapped, r)
+
+		duration := time.Since(start)
+
 		slog.Info("request",
 			"method", r.Method,
 			"path", r.URL.Path,
+			"status-code", wrapped.statusCode,
 			"duration_ms", time.Since(start).Milliseconds(),
 		)
+
+		if r.URL.Path != "/metrics" {
+			httpRequestsTotal.WithLabelValues(
+				r.Method, 
+				r.URL.Path,
+				strconv.Itoa(wrapped.statusCode),
+				).Inc()
+			
+			httpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration.Seconds())
+		}
 	})
 }
