@@ -81,3 +81,30 @@ func TestServerInput_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDatabaseURL(t *testing.T) {
+	t.Run("Чтение из DATABASE_URL если задан", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "postgres://custom:pass@custom-host:5432/custom_db?sslmode=require")
+		url := getDatabaseURL()
+		if url != "postgres://custom:pass@custom-host:5432/custom_db?sslmode=require" {
+			t.Errorf("Ожидался custom url, получено %s", url)
+		}
+	})
+
+	t.Run("Формирование из раздельных переменных DB_*", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "")
+		t.Setenv("DB_USER", "myuser")
+		t.Setenv("DB_PASSWORD", "mypass")
+		t.Setenv("DB_HOST", "myhost")
+		t.Setenv("DB_PORT", "5433")
+		t.Setenv("DB_NAME", "mydb")
+		t.Setenv("DB_SSLMODE", "disable")
+
+		url := getDatabaseURL()
+		expected := "postgres://myuser:mypass@myhost:5433/mydb?sslmode=disable"
+		if url != expected {
+			t.Errorf("Ожидался %s, получено %s", expected, url)
+		}
+	})
+}
+

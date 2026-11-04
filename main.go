@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,7 +28,7 @@ func main() {
 	initLogger()
 
 	port := getEnv("PORT", "8080")
-	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgrespassword@localhost:5432/server_inventory?sslmode=disable")
+	dbURL := getDatabaseURL()
 
 	slog.Info("Запуск сервиса Server Inventory", "port", port)
 
@@ -234,6 +235,19 @@ func getEnv(key, defaultVal string) string {
 		return val
 	}
 	return defaultVal
+}
+
+func getDatabaseURL() string {
+	if url := os.Getenv("DATABASE_URL"); url != "" {
+		return url
+	}
+	user := getEnv("DB_USER", "postgres")
+	pass := getEnv("DB_PASSWORD", "postgrespassword")
+	host := getEnv("DB_HOST", "localhost")
+	port := getEnv("DB_PORT", "5432")
+	name := getEnv("DB_NAME", "server_inventory")
+	sslmode := getEnv("DB_SSLMODE", "disable")
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", user, pass, host, port, name, sslmode)
 }
 
 func initLogger() {

@@ -28,12 +28,46 @@ docker compose down
 go test -v ./...
 ```
 
+### Развёртывание в Kubernetes (Minikube)
+Полный пошаговый листинг команд и описание манифестов вынесены в [k8s/README.md](file:///Users/vladislav/Documents/SRE/k8s/README.md).
+
+Быстрый запуск:
+```bash
+# 1. Запуск Minikube и переключение на кластерный Docker
+minikube start --driver=docker
+eval $(minikube docker-env)
+
+# 2. Сборка образа
+docker build -t status-hub:v3 -t status-hub:latest .
+
+# 3. Применение конфигураций, секретов, хранилища и сервисов
+kubectl apply -f k8s/configmap.yaml \
+              -f k8s/secret.yaml \
+              -f k8s/postgres-pvc.yaml \
+              -f k8s/postgres-service.yaml \
+              -f k8s/postgres-deployment.yaml \
+              -f k8s/app-service.yaml \
+              -f k8s/app-deployment.yaml
+
+# 4. Открытие сервиса в браузере
+minikube service app-service --url
+```
+
 ---
 
 ## Архитектура проекта
 
 ```text
 .
+├── k8s/                  # Декларативные манифесты Kubernetes
+│   ├── configmap.yaml    # ConfigMap: нечувствительные параметры БД и приложения
+│   ├── secret.yaml       # Secret: защищённые пароли БД и приложения
+│   ├── postgres-pvc.yaml # PersistentVolumeClaim: постоянное хранилище PostgreSQL
+│   ├── postgres-service.yaml    # Service (ClusterIP): внутренняя сеть БД
+│   ├── postgres-deployment.yaml # Deployment: база данных PostgreSQL 16
+│   ├── app-service.yaml         # Service (NodePort): внешний доступ на 30080
+│   ├── app-deployment.yaml      # Deployment: приложение StatusHub
+│   └── README.md         # Подробный листинг команд воспроизведения
 ├── migrations/
 │   └── 001_init.sql      # SQL-схема инициализации базы данных
 ├── static/
@@ -41,7 +75,7 @@ go test -v ./...
 ├── Dockerfile            # Минималистичный multi-stage образ
 ├── docker-compose.yml    # Окружение БД + приложение
 ├── models.go             # Модели сущностей, валидация DTO
-├── models_test.go        # Unit-тесты для валидаторов
+├── models_test.go        # Unit-тесты для валидаторов и конфигураций
 ├── db.go                 # Подключение к PostgreSQL и CRUD-запросы
 ├── main.go               # HTTP-сервер, REST API и Graceful Shutdown
 ├── Makefile              # Команды сборки и запуска
