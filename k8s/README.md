@@ -15,6 +15,12 @@
 | `k8s/postgres-deployment.yaml` | `Deployment` | `postgres-deployment` | Поддержание 1 реплики PostgreSQL 16 (с контейнером БД и sidecar exporter). Переменные внедряются из `postgres-config` и `postgres-secret`. |
 | `k8s/app-service.yaml` | `Service` | `app-service` | Сервис типа `NodePort` (`nodePort: 30080`) для внешнего доступа к веб-интерфейсу и REST API с балансировкой трафика. |
 | `k8s/app-deployment.yaml` | `Deployment` | `app-deployment` | Stateless-поды приложения StatusHub. Поддерживают масштабирование (`scale`). Параметры подключения к БД внедряются из `app-config` и `app-secret`. |
+| `k8s/victoria-logs-pvc.yaml` | `PersistentVolumeClaim` | `victoria-logs-pvc` | Выделение постоянного диска 2Gi (`ReadWriteOnce`) для LSM-хранилища логов VictoriaLogs. |
+| `k8s/victoria-logs-service.yaml` | `Service` | `victoria-logs-service` | Внутренний `ClusterIP` сервис на порту `9428` для приёма логов от шиппера Vector и веб-интерфейса VMUI. |
+| `k8s/victoria-logs-deployment.yaml` | `Deployment` | `victoria-logs-deployment` | Развёртывание single-node экземпляра VictoriaLogs (`victoriametrics/victoria-logs:v1.53.0`). |
+| `k8s/vector-rbac.yaml` | `ServiceAccount`, `ClusterRole`, `ClusterRoleBinding` | `vector` | Кластерные привилегии для чтения метаданных подов и пространств имён агентом Vector. |
+| `k8s/vector-config.yaml` | `ConfigMap` | `vector-config` | Конфигурация пайплайна Vector: source `kubernetes_logs`, VRL remap (`parse_json(.message)`), sink `elasticsearch` (`/insert/elasticsearch/`). |
+| `k8s/vector-daemonset.yaml` | `DaemonSet` | `vector` | Запуск легковесного агента Vector (`timberio/vector:0.41.1-alpine`) на каждом узле кластера с монтированием `/var/log/pods`. |
 
 ---
 
@@ -179,6 +185,31 @@ kubectl logs -l app=status-hub --tail=10
 ```
 
 ---
+
+### Шаг 7.1: Развёртывание централизованного логирования (VictoriaLogs + Vector DaemonSet)
+
+```bash
+# 1. Развёртывание хранилища VictoriaLogs (PVC + Service + Deployment)
+kubectl apply -f k8s/victoria-logs-pvc.yaml
+kubectl apply -f k8s/victoria-logs-service.yaml
+kubectl apply -f k8s/victoria-logs-deployment.yaml
+
+# 2. Развёртывание шиппера логов Vector DaemonSet (RBAC + Config + DaemonSet)
+kubectl apply -f k8s/vector-rbac.yaml
+kubectl apply -f k8s/vector-config.yaml
+kubectl apply -f k8s/vector-daemonset.yaml
+
+# 3. Проверка статуса запуска подов логирования
+kubectl rollout status deployment/victoria-logs-deployment
+kubectl rollout status daemonset/vector
+kubectl get pods -l app=victoria-logs
+kubectl get pods -l app=vector
+
+# 4. Проброс порта для доступа к веб-интерфейсу VMUI VictoriaLogs
+kubectl port-forward svc/victoria-logs-service 9428:9428 &
+
+# Веб-интерфейс доступен по адресу: http://localhost:9428/vmui/
+```
 
 ---
 
