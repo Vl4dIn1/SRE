@@ -4,3 +4,4 @@ bin/
 .env
 AI_CONTEXT.md
 *.mov
+webhook-receiver/receiver

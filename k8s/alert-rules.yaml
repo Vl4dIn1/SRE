@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alert-rules
+  namespace: monitoring
+data:
+  alerts.yaml: |
+    groups:
+      - name: statushub_service_alerts
+        interval: 10s
+        rules:
+          - alert: StatusHubHigh5xxErrorRate
+            expr: sum(rate(http_requests_total{status_code=~"5.."}[1m])) / sum(rate(http_requests_total[1m])) * 100 > 1
+            for: 30s
+            labels:
+              severity: critical
+              service: status-hub
+            annotations:
+              summary: "Высокий уровень 5xx ошибок в StatusHub (> 1%)"
+              description: "Доля ошибок 5xx составляет более 1% за последнюю минуту. Нарушение SLO доступности (99.5%) и выгорание бюджета ошибок."
+
+          - alert: StatusHubDatabaseDown
+            expr: (sum(pg_up) or vector(0)) == 0
+            for: 15s
+            labels:
+              severity: critical
+              service: postgres
+            annotations:
+              summary: "СУБД PostgreSQL недоступна"
+              description: "СУБД не отвечает или экспортер недоступен (pg_up == 0). Сервис StatusHub переходит в режим Fail-Fast, CRUD-операции невозможны."
+
+          - alert: StatusHubHighLatencyP95
+            expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le)) > 0.1
+            for: 1m
+            labels:
+              severity: warning
+              service: status-hub
+            annotations:
+              summary: "Высокая задержка ответов HTTP API (P95 > 100ms)"
+              description: "95-й перцентиль времени обработки запросов превышает 100 мс в течение 1 минуты. Возможно замедление базы или насыщение CPU."
+
+      - name: statushub_runtime_alerts
+        interval: 10s
+        rules:
+          - alert: GoGoroutineLeak
+            expr: go_goroutines{job="kubernetes-pods", app="status-hub"} > 10
+            for: 15s
+            labels:
+              severity: warning
+              service: status-hub
+              runtime: golang
+            annotations:
+              summary: "Потенциальная утечка горутин в Go (Goroutine Leak)"
+              description: "Количество активных горутин в StatusHub превысило порог нормы (текущее: {{ $value }}). В норме ~10-15. Возможна блокировка на каналах или I/O."
+
+          - alert: GoHighHeapAllocation
+            expr: go_memstats_heap_alloc_bytes{job="kubernetes-pods", app="status-hub"} > 52428800
+            for: 1m
+            labels:
+              severity: warning
+              service: status-hub
+              runtime: golang
+            annotations:
+              summary: "Высокое потребление памяти в куче Go (Heap Alloc > 50MB)"
+              description: "Объём динамической памяти в куче Go превышает 50 МБ (текущее: {{ $value }} байт). Риск утечки памяти и OOMKilled в Kubernetes."
