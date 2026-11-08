@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alert-rules
+  namespace: monitoring
+data:
+  rules.yaml: |
+    groups:
+      - name: statushub-alerts
+        rules:
+          - alert: StatusHubDown
+            expr: up{app="status-hub"} == 0
+            for: 30s
+            labels:
+              severity: critical
+            annotations:
+              summary: "Сервис StatusHub недоступен"
+
+          - alert: StatusHubPostgresDown
+            expr: (sum(pg_up) or vector(0)) == 0
+            for: 15s
+            labels:
+              severity: critical
+            annotations:
+              summary: "База данных PostgreSQL недоступна"
+
+          - alert: StatusHub5xxErrors
+            expr: sum(rate(http_requests_total{app="status-hub", status_code=~"5.."}[1m])) > 0
+            for: 30s
+            labels:
+              severity: critical
+            annotations:
+              summary: "Появились 5xx ошибки в сервисе StatusHub"
+
+          - alert: GoHighGoroutines
+            expr: go_goroutines{app="status-hub"} > 50
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Высокое число горутин в StatusHub"
+
+          - alert: GoHighMemory
+            expr: go_memstats_heap_alloc_bytes{app="status-hub"} > 50000000
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Высокое потребление памяти кучи в StatusHub"
