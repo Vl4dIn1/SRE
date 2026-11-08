@@ -213,36 +213,11 @@ kubectl port-forward svc/victoria-logs-service 9428:9428 &
 
 ---
 
-### Шаг 8: Развёртывание мониторинга и алертинга (VictoriaMetrics, vmalert, Alertmanager)
+### Шаг 8: Очистка ресурсов
 
 ```bash
-# 1. Применение правил алертинга, конфигурации Alertmanager и vmalert
-kubectl apply -f k8s/alert-rules.yaml
-kubectl apply -f k8s/alertmanager.yaml
-kubectl apply -f k8s/vmalert.yaml
-
-# 2. Проброс портов для доступа к веб-интерфейсам
-kubectl port-forward -n monitoring svc/alertmanager 9093:9093 5001:5001 &
-kubectl port-forward -n monitoring svc/vmalert 8880:8880 &
-kubectl port-forward -n monitoring svc/vm-single-victoria-metrics-single-server 8428:8428 &
-
-# 3. Доступные веб-интерфейсы:
-# - Центр уведомлений (Webhook Dashboard): http://localhost:5001
-# - Prometheus Alertmanager: http://localhost:9093
-# - VictoriaMetrics vmalert: http://localhost:8880
-# - VictoriaMetrics VMUI: http://localhost:8428/vmui
-```
-
----
-
-### Шаг 9: Очистка ресурсов
-
-```bash
-# Удаление всех созданных ресурсов приложения, БД и алертинга
-kubectl delete -f k8s/vmalert.yaml \
-               -f k8s/alertmanager.yaml \
-               -f k8s/alert-rules.yaml \
-               -f k8s/app-deployment.yaml \
+# Удаление всех созданных ресурсов приложения и БД
+kubectl delete -f k8s/app-deployment.yaml \
                -f k8s/app-service.yaml \
                -f k8s/postgres-deployment.yaml \
                -f k8s/postgres-service.yaml \
@@ -253,4 +228,3 @@ kubectl delete -f k8s/vmalert.yaml \
 # Остановка Minikube
 minikube stop
 ```
-
