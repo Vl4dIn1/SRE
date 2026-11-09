@@ -1,35 +1,10 @@
-apiVersion: v1
-kind: ConfigMap
-metadata: 
-  name: alertmanager-config
-  namespace: monitoring
-data: 
-  alertmanager.yml: |
-    route:
-      group_by: ["alertname", "service"]
-      group_wait: 5s
-      group_interval: 10s
-      receiver: "telegram-alerts"
-      
-    receivers:
-      - name: "telegram-alerts"
-        telegram_configs:
-            - bot_token: "9299028964:AAHmq5HZ-VtFpvkEBCjI7N6iuzaq4mmXlgk"
-              chat_id: 5784956570
-              send_resolved: true
-              parse_mode: "HTML"
-              message: |
-                {{ if eq .Status "firing" }}🔥 <b>[ALERT FIRING]</b> {{ .CommonAnnotations.summary }}{{ else }}✅ <b>[RESOLVED]</b> {{ .CommonAnnotations.summary }}{{ end }}
-                <b>Важность:</b> {{ .CommonLabels.severity }}
-                <b>Сервис:</b> {{ .CommonLabels.service }}
-                <b>Описание:</b> {{ .CommonAnnotations.description }}
-
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: alertmanager
   namespace: monitoring
+  labels:
+    app: alertmanager
 spec:
   replicas: 1
   selector:
@@ -48,14 +23,15 @@ spec:
           - "--storage.path=/alertmanager"
           - "--web.external-url=http://localhost:9093"
         ports:
-          - containerPort: 9093
+          - name: http
+            containerPort: 9093
         volumeMounts:
           - name: config-volume
             mountPath: /etc/alertmanager
       volumes:
         - name: config-volume
-          configMap:
-            name: alertmanager-config
+          secret:
+            secretName: alertmanager-config
 
 ---
 apiVersion: v1
@@ -65,10 +41,11 @@ metadata:
   namespace: monitoring
   labels:
     app: alertmanager
-
 spec:
   type: ClusterIP
   selector:
     app: alertmanager
   ports:
-    - port: 9093
+    - name: http
+      port: 9093
+      targetPort: 9093

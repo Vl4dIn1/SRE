@@ -216,8 +216,9 @@ kubectl port-forward svc/victoria-logs-service 9428:9428 &
 ### Шаг 8: Развёртывание мониторинга и алертинга (VictoriaMetrics, vmalert, Alertmanager)
 
 ```bash
-# 1. Применение правил алертинга, конфигурации Alertmanager и vmalert
+# 1. Применение правил алертинга, секрета Telegram, Alertmanager и vmalert
 kubectl apply -f k8s/alert-rules.yaml
+kubectl apply -f k8s/alertmanager-secret.yaml
 kubectl apply -f k8s/alertmanager.yaml
 kubectl apply -f k8s/vmalert.yaml
 
@@ -241,6 +242,7 @@ kubectl port-forward -n monitoring svc/vm-single-victoria-metrics-single-server 
 # Удаление всех созданных ресурсов приложения, БД и алертинга
 kubectl delete -f k8s/vmalert.yaml \
                -f k8s/alertmanager.yaml \
+               -f k8s/alertmanager-secret.yaml \
                -f k8s/alert-rules.yaml \
                -f k8s/app-deployment.yaml \
                -f k8s/app-service.yaml \
